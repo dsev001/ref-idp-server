@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/**'
+      - '.devcontainer/**'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '.github/**'
+      - '.devcontainer/**'
   workflow_dispatch:
 
 
@@ -22,13 +28,15 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-      - name: Build with Maven
-        run: mvn clean install -pl idp-server -am
-      - name: Upload idp-client JAR
-        uses: actions/upload-artifact@v4.4.3
+      - name: Maven Action
+        uses: hb0730/maven-action@v1.0.2
         with:
-          name: idp-client
-          path: |
-            /home/runner/.m2/repository/de/gematik/idp/idp-client/*/idp-client-*.jar
-            !/home/runner/.m2/repository/de/gematik/idp/idp-client/*/idp-client-*-javadoc.jar
-            !/home/runner/.m2/repository/de/gematik/idp/idp-client/*/idp-client-*-sources.jar
+          maven-version: 3.9.9
+      - name: Build with Maven
+        if: github.event_name != 'workflow_dispatch'
+        run: mvn clean install -pl idp-server -am
+      - name: Build with Maven (no tests)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          mvn clean install -pl idp-server -am -Dskip.unittests -Dskip.inttests -Dcommit_hash=`git log --pretty=format:'%H' -n 1`
+          echo ${{ github.ref }}
