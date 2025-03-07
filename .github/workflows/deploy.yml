@@ -37,7 +37,7 @@ jobs:
       packages: write
     uses: ./.github/workflows/build.yml
   deploy:
-    needs: [server_ip]
+    needs: [server_ip, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository tag
