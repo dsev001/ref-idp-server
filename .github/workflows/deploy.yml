@@ -1,0 +1,69 @@
+name: Deploy IDP
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+      - '.devcontainer/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+      - '.devcontainer/**'
+  workflow_dispatch:
+env:
+  DEPLOY_KEY: '~/.ssh/id_deploy'
+  APP_PATH: '/app'
+  SOURCE_REPOSITORY: 'gematik/ref-idp-server'
+jobs:
+  server_ip:
+    runs-on: ubuntu-latest
+    outputs:
+      server_ip: ${{ steps.hcloud.outputs.server_ip }}
+    steps:
+      - name: Checkout repository tag
+        uses: actions/checkout@v4.2.2
+      - uses: ./.github/actions/inventory
+        id: hcloud
+        with:
+          hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          hostvar: devidp
+  # build:
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #   uses: ./.github/workflows/build.yml
+  deploy:
+    needs: [server_ip]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository tag
+        uses: actions/checkout@v4.2.2
+      - name: Init deploy key
+        id: ssh_keys
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.DEPLOYMENT_KEY }}" | base64 -d > ${{ env.DEPLOY_KEY }} && chmod 600 ${{ env.DEPLOY_KEY }}
+          ssh-keygen -f ${{ env.DEPLOY_KEY }} -y > ${{ env.DEPLOY_KEY }}.pub && chmod 644 ${{ env.DEPLOY_KEY }}.pub
+          ssh-keyscan ${{ needs.server_ip.outputs.server_ip }} >> ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+      - name: Update server
+        id: ssh-docker
+        shell: bash
+        run: |
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} "apt-get update && apt-get install -y docker-compose git"
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} "echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin"
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'rm -rdf ${{ env.APP_PATH }} && git clone https://github.com/${{ env.SOURCE_REPOSITORY }}.git ${{ env.APP_PATH }}'
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'cd ${{ env.APP_PATH }} && echo "appVersion="$(git describe --tags --abbrev=0)"" > ${{ env.APP_PATH }}/.env && echo IDM_ARTIFACT_REGISTRY="local" >> ${{ env.APP_PATH }}/.env'
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'cd ${{ env.APP_PATH }} && appVersion="$(git describe --tags --abbrev=0)" && docker pull ghcr.io/${{ github.repository }}:$appVersion'
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'cd ${{ env.APP_PATH }} && appVersion="$(git describe --tags --abbrev=0)" && docker tag ghcr.io/${{ github.repository }}:$appVersion local/idm/idp-server:$appVersion'
+      - name: (re)start compose
+        id: ssh-compose
+        shell: bash
+        run: |         
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'docker-compose --env-file ${{ env.APP_PATH }}/.env -f ${{ env.APP_PATH }}/docker-compose-ref.yml down || echo "No containers running"'
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'docker-compose --env-file ${{ env.APP_PATH }}/.env -f ${{ env.APP_PATH }}/docker-compose-ref.yml up --detach'
+          ssh -i ${{ env.DEPLOY_KEY }} root@${{ needs.server_ip.outputs.server_ip }} 'docker-compose --env-file ${{ env.APP_PATH }}/.env -f ${{ env.APP_PATH }}/docker-compose-ref.yml ps'
