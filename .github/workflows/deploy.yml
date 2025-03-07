@@ -31,11 +31,11 @@ jobs:
         with:
           hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           hostvar: devidp
-  # build:
-  #   permissions:
-  #     contents: read
-  #     packages: write
-  #   uses: ./.github/workflows/build.yml
+  build:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build.yml
   deploy:
     needs: [server_ip]
     runs-on: ubuntu-latest
