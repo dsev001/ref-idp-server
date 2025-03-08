@@ -75,10 +75,10 @@ jobs:
           tag_name: ${{ steps.tag.outputs.LATEST_TAG }}
           repository: ${{ github.repository }}
           files: |
-            /home/runner/work/idp-server/idp-server/idp-server/target/idp-server-${{ steps.tag.outputs.LATEST_TAG }}.jar
-            /home/runner/work/idp-server/idp-server/idp-server/target/idp-client-${{ steps.tag.outputs.LATEST_TAG }}.jar
-            /home/runner/work/idp-server/idp-server/idp-server/target/idp-commons-${{ steps.tag.outputs.LATEST_TAG }}.jar
-            /home/runner/work/idp-server/idp-server/idp-server/target/idp-crypto-${{ steps.tag.outputs.LATEST_TAG }}.jar
+            /home/runner/work/ref-idp-server/ref-idp-server/idp-server/target/idp-server-${{ steps.tag.outputs.LATEST_TAG }}.jar
+            /home/runner/work/ref-idp-server/ref-idp-server/idp-client/target/idp-client-${{ steps.tag.outputs.LATEST_TAG }}.jar
+            /home/runner/work/ref-idp-server/ref-idp-server/idp-commons/target/idp-commons-${{ steps.tag.outputs.LATEST_TAG }}.jar
+            /home/runner/work/ref-idp-server/ref-idp-server/idp-crypto/target/idp-crypto-${{ steps.tag.outputs.LATEST_TAG }}.jar
       - name: Push to GHCR
         if: ${{ env.NEW_RELEASE }}
         env:
